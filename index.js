@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 require('dotenv').config()
 const port = process.env.PORT || 3000;
@@ -27,12 +27,27 @@ async function run() {
         await client.connect();
 
         const jobsCollection = client.db('careerCode').collection('jobs');
+        const applicationCollection = client.db('careerCode').collection('applications')
 
         //  Getting all the jobs
         app.get('/jobs', async(req,res)=> {
             const cursor = jobsCollection.find(); // Emny
             const result = await cursor.toArray(); // Fetches all data from the DB and stores here
             res.send(result); // Sending fetched data to the client
+        })
+
+        app.get('/jobs/:id', async(req, res) => {
+            const id = req.params.id; //  Getting the ID from URL parameters
+            const query = {_id: new ObjectId(id)} // Converting the id into mongodb ID
+            const result = await jobsCollection.findOne(query) // Getting the data that matches the id and saving here
+            res.send(result); // Sending the data to the client
+        })
+
+        // Job applications related apis
+        app.post('/applications', async(req,res) => {
+            const application = req.body; // Storing the data from the request 
+            const result = await applicationCollection.insertOne(application) //  Sending teh data to the mongodb and saving the confirmation message and unique id here
+            res.send(result) // Sending the confirmation message and unique id to the client
         })
 
         // Send a ping to confirm a successful connection
