@@ -30,24 +30,74 @@ async function run() {
         const applicationCollection = client.db('careerCode').collection('applications')
 
         //  Getting all the jobs
-        app.get('/jobs', async(req,res)=> {
-            const cursor = jobsCollection.find(); // Emny
-            const result = await cursor.toArray(); // Fetches all data from the DB and stores here
+        app.get('/jobs', async (req, res) => {
+
+            const email = req.query.email; // Getting the query parameter email from the URL
+            const query = {} 
+            if (email) {
+                query.hr_email = email // If an email is there in the query parameter then set it in the query variable
+            }
+            const result = await jobsCollection.find(query).toArray() // Fetch jobs from DB based on query and saves here
             res.send(result); // Sending fetched data to the client
         })
 
-        app.get('/jobs/:id', async(req, res) => {
+        app.get('/jobs/:id', async (req, res) => {
             const id = req.params.id; //  Getting the ID from URL parameters
-            const query = {_id: new ObjectId(id)} // Converting the id into mongodb ID
+            const query = { _id: new ObjectId(id) } // Converting the id into mongodb ID 
             const result = await jobsCollection.findOne(query) // Getting the data that matches the id and saving here
             res.send(result); // Sending the data to the client
         })
 
+        app.post('/jobs', async (req, res) => {
+            const newJob = req.body; // Getting the data from the request and storing here 
+            const result = await jobsCollection.insertOne(newJob); // Sending the newJob data in the database and saving the confirmation message here
+            res.send(result) // sending the confirmation message to the client
+        })
+
+        app.get('/applications/job/:job_id', async(req,res)=> {
+            const job_id = req.params.job_id ;
+            const query = {id: job_id}
+            const result = await applicationCollection.find(query).toArray(); // Commanding to find the data matches with the query and saves here
+            res.send(result) // Sending the data to the client
+        })
+
+        app.get('/applications', async (req, res) => {
+            const email = req.query.email; // Extracting the email from the URL query parameter and storing the email here
+
+            const query = { applicant: email }
+
+            const result = await applicationCollection.find(query).toArray() // Searching all the collection to find the data that matches the query and saves here
+
+            // bad way to aggregate data
+            for (const application of result) {
+                const id = application.id; // Getting the id from the application object
+                const jobQuery = { _id: new ObjectId(id) } // Converting the id into mongodb id
+                const job = await jobsCollection.findOne(jobQuery); // Commanding to find the job that matches the jobQuery
+                application.company = job.company
+                application.title = job.title
+                application.company_logo = job.company_logo
+            }
+            res.send(result) // Sending the data to the client
+        })
+
         // Job applications related apis
-        app.post('/applications', async(req,res) => {
-            const application = req.body; // Storing the data from the request 
+        app.post('/applications', async (req, res) => {
+            const application = req.body; // Getting the data from the request and storing here 
             const result = await applicationCollection.insertOne(application) //  Sending teh data to the mongodb and saving the confirmation message and unique id here
             res.send(result) // Sending the confirmation message and unique id to the client
+        })
+
+        app.patch('/applications/:id', async(req,res)=> {
+            const id = req.params.id; // Getting Id from the req
+            const filter = {_id: new ObjectId(id)} // Converting id into mongoDb id
+            const updatedDoc = { // Defining What to update
+                $set: {
+                    status: req.body.status
+                }
+            } 
+
+            const result = await applicationCollection.updateOne(filter, updatedDoc) // Commanding mongodb to update and saving the confirmation message here
+            res.send(result); // Sending the confirmation message to the client
         })
 
         // Send a ping to confirm a successful connection
@@ -59,7 +109,6 @@ async function run() {
     }
 }
 run().catch(console.dir);
-
 
 app.get('/', (req, res) => {
     res.send('Career Code Cooking') // 
