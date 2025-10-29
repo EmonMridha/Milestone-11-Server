@@ -1,0 +1,9 @@
+
+using http only cookies
+
+1. Send information from client side to the backend
+2. create an api in the backend to create the token
+3. Set the token to the cookies 
+   . set withCredentials:true if using axios
+   . set origin in the middleware
+   . set cookie in the jwt api

@@ -2,12 +2,39 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 require('dotenv').config()
 const port = process.env.PORT || 3000;
 
 // middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+const logger = (req, res, next) => {
+    console.log('inside the logger middleware');
+    next();
+}
+
+const verifyToken = (req,res,next) => {
+    const token = req.cookie?.token;
+    if(!token) {
+        return res.status(401).send({message: 'unauthorized access'})
+    }
+
+    jwt.verify.apply(token, process.env.JWT_ACCESS_SECRET, (err, decoded)=> {
+        if(err){
+            return res.status(401).send({message:'unauthorized access'})
+        }
+        req.decoded = decoded;
+        next();
+    })
+
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.v9x5iie.mongodb.net/?appName=Cluster0`;
@@ -29,11 +56,25 @@ async function run() {
         const jobsCollection = client.db('careerCode').collection('jobs');
         const applicationCollection = client.db('careerCode').collection('applications')
 
+        // jwt token related api
+        app.post('/jwt', async (req, res) => {
+            const userInfo = req.body;
+
+            const token = jwt.sign(userInfo, process.env.JWT_ACCESS_SECRET, {expiresIn: '2h'})
+
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: false
+            })
+
+            res.send({success:true}) // Sending a success message to the client
+        })
+
         //  Getting all the jobs
         app.get('/jobs', async (req, res) => {
 
             const email = req.query.email; // Getting the query parameter email from the URL
-            const query = {} 
+            const query = {}
             if (email) {
                 query.hr_email = email // If an email is there in the query parameter then set it in the query variable
             }
@@ -43,6 +84,7 @@ async function run() {
 
         app.get('/jobs/:id', async (req, res) => {
             const id = req.params.id; //  Getting the ID from URL parameters
+            console.log('inside application api', req.cookies);
             const query = { _id: new ObjectId(id) } // Converting the id into mongodb ID 
             const result = await jobsCollection.findOne(query) // Getting the data that matches the id and saving here
             res.send(result); // Sending the data to the client
@@ -54,14 +96,14 @@ async function run() {
             res.send(result) // sending the confirmation message to the client
         })
 
-        app.get('/applications/job/:job_id', async(req,res)=> {
-            const job_id = req.params.job_id ;
-            const query = {id: job_id}
+        app.get('/applications/job/:job_id', async (req, res) => {
+            const job_id = req.params.job_id;
+            const query = { id: job_id }
             const result = await applicationCollection.find(query).toArray(); // Commanding to find the data matches with the query and saves here
             res.send(result) // Sending the data to the client
         })
 
-        app.get('/applications', async (req, res) => {
+        app.get('/applications', logger, async (req, res) => {
             const email = req.query.email; // Extracting the email from the URL query parameter and storing the email here
 
             const query = { applicant: email }
@@ -87,14 +129,14 @@ async function run() {
             res.send(result) // Sending the confirmation message and unique id to the client
         })
 
-        app.patch('/applications/:id', async(req,res)=> {
+        app.patch('/applications/:id', async (req, res) => {
             const id = req.params.id; // Getting Id from the req
-            const filter = {_id: new ObjectId(id)} // Converting id into mongoDb id
+            const filter = { _id: new ObjectId(id) } // Converting id into mongoDb id
             const updatedDoc = { // Defining What to update
                 $set: {
                     status: req.body.status
                 }
-            } 
+            }
 
             const result = await applicationCollection.updateOne(filter, updatedDoc) // Commanding mongodb to update and saving the confirmation message here
             res.send(result); // Sending the confirmation message to the client
